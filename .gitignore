@@ -2,6 +2,11 @@ venv/
 __pycache__/
 *.pyc
 *.pkl
-/data/
 /models/
 /notebooks/
+
+# Ignore everything in data folder except outputs
+data/*
+!data/outputs/
+data/outputs/*
+!data/outputs/predictions_latest.csv
