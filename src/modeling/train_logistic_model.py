@@ -23,7 +23,13 @@ def train_logreg_model():
     "away_avg_off_epa",
     "away_avg_def_epa",
     "away_avg_success_rate",
-    ]
+    "home_off_dvoa",
+    "home_def_dvoa",
+    "away_off_dvoa",
+    "away_def_dvoa",
+    "off_dvoa_diff",
+    "def_dvoa_diff",
+]
 
     # Basic guard if some early seasons have missing EPA
     df_train = df_train.dropna(subset=feature_cols)

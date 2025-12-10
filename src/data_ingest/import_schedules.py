@@ -23,3 +23,4 @@ def import_schedules(seasons):
     sched.to_csv(out_path, index=False)
     print(f"Saved schedules to {out_path}")
     return sched
+
