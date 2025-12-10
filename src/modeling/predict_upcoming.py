@@ -141,10 +141,37 @@ def predict_upcoming_games():
         - (games_df["home_avg_def_epa"] * epa_to_points_scale)
     )
 
-    # ---- Run simulation to get win / cover / over probabilities ----
-    games_df = simulate_game_outcomes(games_df, n_sims=5000, sigma=10.0)
-
-    # Now model_over_pct exists, so we can safely use it
+    # ---- Calculate probabilities analytically (faster and more stable than simulation) ----
+    # Use logistic regression probability for straight-up wins
+    games_df["model_win_pct_home"] = games_df["home_win_prob"]
+    games_df["model_win_pct_away"] = 1 - games_df["home_win_prob"]
+    
+    # Calculate spread and total probabilities using analytical formulas
+    # These assume normal distribution of scores
+    from scipy import stats
+    
+    sigma_margin = 13.5  # Standard deviation of point margin in NFL
+    sigma_total = 10.5   # Standard deviation of total points in NFL
+    
+    def calculate_cover_and_total_probs(row):
+        expected_margin = row["model_home_score"] - row["model_away_score"]
+        expected_total = row["model_home_score"] + row["model_away_score"]
+        
+        # Cover probability: home covers if (margin + spread_line) > 0
+        cover_threshold = -row["spread_line"]
+        cover_prob = 1 - stats.norm.cdf(cover_threshold, loc=expected_margin, scale=sigma_margin)
+        
+        # Over probability
+        over_prob = 1 - stats.norm.cdf(row["total_line"], loc=expected_total, scale=sigma_total)
+        
+        return pd.Series({
+            'model_cover_pct_home': cover_prob,
+            'model_over_pct': over_prob
+        })
+    
+    spread_total_probs = games_df.apply(calculate_cover_and_total_probs, axis=1)
+    games_df["model_cover_pct_home"] = spread_total_probs["model_cover_pct_home"]
+    games_df["model_over_pct"] = spread_total_probs["model_over_pct"]
     games_df["model_under_pct"] = 1 - games_df["model_over_pct"]
 
     # Model expected total from "model" scores
