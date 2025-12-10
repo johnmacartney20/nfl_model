@@ -26,6 +26,37 @@ def american_to_decimal(odds):
         return 1 + (100 / abs(odds))
 
 
+def calculate_kelly_fraction(probability, decimal_odds, kelly_fraction=0.25):
+    """
+    Calculate Kelly Criterion bet size.
+    
+    Args:
+        probability: Model's estimated probability of winning the bet
+        decimal_odds: Decimal odds for the bet
+        kelly_fraction: Fraction of Kelly to use (default 0.25 = quarter Kelly for safety)
+    
+    Returns:
+        Recommended fraction of bankroll to bet (0 if no edge)
+    """
+    if pd.isna(probability) or pd.isna(decimal_odds):
+        return 0.0
+    
+    # Kelly formula: f = (bp - q) / b
+    # where b = decimal_odds - 1, p = probability, q = 1 - p
+    b = decimal_odds - 1
+    p = probability
+    q = 1 - p
+    
+    kelly = (b * p - q) / b
+    
+    # Only bet if there's positive expected value
+    if kelly <= 0:
+        return 0.0
+    
+    # Use fractional Kelly for safety (reduces variance)
+    return kelly * kelly_fraction
+
+
 def build_upcoming_games_features():
     """
     For now, "upcoming games" will be rows where scores are NaN.
@@ -126,46 +157,183 @@ def predict_upcoming_games():
         games_df.loc[games_df[col] == 0, col] = pd.NA
 
 
-    # Convert American odds to decimal odds for totals
+    # Convert American odds to decimal odds
     games_df["dec_over_odds"] = games_df["over_odds"].apply(american_to_decimal)
     games_df["dec_under_odds"] = games_df["under_odds"].apply(american_to_decimal)
+    
+    # Also get spread odds
+    games_df["dec_home_spread_odds"] = games_df["home_spread_odds"].apply(american_to_decimal)
+    games_df["dec_away_spread_odds"] = games_df["away_spread_odds"].apply(american_to_decimal)
+    
+    # Moneyline odds
+    games_df["dec_home_moneyline"] = games_df["home_moneyline"].apply(american_to_decimal)
+    games_df["dec_away_moneyline"] = games_df["away_moneyline"].apply(american_to_decimal)
 
-    # Expected value per $1 on over / under
-    games_df["ev_over_per_$"] = (
+    # ============================================================
+    # EXPECTED VALUE CALCULATIONS
+    # ============================================================
+    
+    # Over/Under Expected Value
+    games_df["ev_over"] = (
         games_df["model_over_pct"] * (games_df["dec_over_odds"] - 1)
         - (1 - games_df["model_over_pct"])
     )
-
-    games_df["ev_under_per_$"] = (
+    games_df["ev_under"] = (
         games_df["model_under_pct"] * (games_df["dec_under_odds"] - 1)
         - (1 - games_df["model_under_pct"])
     )
+    
+    # Spread Expected Value
+    games_df["ev_home_spread"] = (
+        games_df["model_cover_pct_home"] * (games_df["dec_home_spread_odds"] - 1)
+        - (1 - games_df["model_cover_pct_home"])
+    )
+    games_df["ev_away_spread"] = (
+        (1 - games_df["model_cover_pct_home"]) * (games_df["dec_away_spread_odds"] - 1)
+        - games_df["model_cover_pct_home"]
+    )
+    
+    # Moneyline Expected Value
+    games_df["ev_home_ml"] = (
+        games_df["model_win_pct_home"] * (games_df["dec_home_moneyline"] - 1)
+        - (1 - games_df["model_win_pct_home"])
+    )
+    games_df["ev_away_ml"] = (
+        (1 - games_df["model_win_pct_home"]) * (games_df["dec_away_moneyline"] - 1)
+        - games_df["model_win_pct_home"]
+    )
+
+    # ============================================================
+    # KELLY CRITERION BET SIZING (using quarter-Kelly for safety)
+    # ============================================================
+    
+    # Over/Under Kelly
+    games_df["kelly_over"] = games_df.apply(
+        lambda row: calculate_kelly_fraction(row["model_over_pct"], row["dec_over_odds"]), 
+        axis=1
+    )
+    games_df["kelly_under"] = games_df.apply(
+        lambda row: calculate_kelly_fraction(row["model_under_pct"], row["dec_under_odds"]), 
+        axis=1
+    )
+    
+    # Spread Kelly
+    games_df["kelly_home_spread"] = games_df.apply(
+        lambda row: calculate_kelly_fraction(row["model_cover_pct_home"], row["dec_home_spread_odds"]), 
+        axis=1
+    )
+    games_df["kelly_away_spread"] = games_df.apply(
+        lambda row: calculate_kelly_fraction(1 - row["model_cover_pct_home"], row["dec_away_spread_odds"]), 
+        axis=1
+    )
+    
+    # Moneyline Kelly
+    games_df["kelly_home_ml"] = games_df.apply(
+        lambda row: calculate_kelly_fraction(row["model_win_pct_home"], row["dec_home_moneyline"]), 
+        axis=1
+    )
+    games_df["kelly_away_ml"] = games_df.apply(
+        lambda row: calculate_kelly_fraction(1 - row["model_win_pct_home"], row["dec_away_moneyline"]), 
+        axis=1
+    )
+    
+    # ============================================================
+    # IDENTIFY BEST BETS (highest expected value with positive Kelly)
+    # ============================================================
+    
+    # Find the best bet for each game
+    bet_columns = {
+        'over': ('ev_over', 'kelly_over'),
+        'under': ('ev_under', 'kelly_under'),
+        'home_spread': ('ev_home_spread', 'kelly_home_spread'),
+        'away_spread': ('ev_away_spread', 'kelly_away_spread'),
+        'home_ml': ('ev_home_ml', 'kelly_home_ml'),
+        'away_ml': ('ev_away_ml', 'kelly_away_ml')
+    }
+    
+    def find_best_bet(row):
+        best_ev = -1
+        best_bet = None
+        best_kelly = 0
+        
+        for bet_name, (ev_col, kelly_col) in bet_columns.items():
+            ev = row[ev_col]
+            kelly = row[kelly_col]
+            if pd.notna(ev) and pd.notna(kelly) and ev > best_ev and kelly > 0:
+                best_ev = ev
+                best_bet = bet_name
+                best_kelly = kelly
+        
+        return pd.Series({
+            'best_bet_type': best_bet if best_bet else 'no_edge',
+            'best_bet_ev': best_ev if best_bet else 0,
+            'best_bet_kelly': best_kelly
+        })
+    
+    best_bets_df = games_df.apply(find_best_bet, axis=1)
+    games_df = pd.concat([games_df, best_bets_df], axis=1)
 
     # Save full predictions with simulation output
     games_df.to_csv(PREDICTIONS_CSV, index=False)
     print(f"Saved predictions (with simulation) to {PREDICTIONS_CSV}")
 
-    # Print a quick view for sanity check
-    cols_to_show = [
-        "home_team",
-        "away_team",
-        "spread_line",
-        "total_line",
-        "book_home_score",
-        "book_away_score",
-        "model_total_points",
-        "home_win_prob",
-        "model_win_pct_home",
-        "model_cover_pct_home",
-        "model_over_pct",
-        "model_under_pct",
-        "over_odds",
-        "under_odds",
-        "ev_over_per_$",
-        "ev_under_per_$",
-    ]
-    cols_to_show = [c for c in cols_to_show if c in games_df.columns]
-    print(games_df[cols_to_show])
+    # Print a summary of best bets
+    print("\n" + "=" * 120)
+    print("TOP BETTING OPPORTUNITIES (Highest Expected Value)")
+    print("=" * 120)
+    
+    # Filter to games with positive EV and valid team names
+    value_bets = games_df[
+        (games_df['best_bet_ev'] > 0) & 
+        (games_df['home_team'].notna()) & 
+        (games_df['away_team'].notna())
+    ].copy()
+    
+    if not value_bets.empty:
+        value_bets = value_bets.sort_values('best_bet_ev', ascending=False)
+        
+        display_cols = [
+            'home_team', 'away_team', 'best_bet_type', 
+            'best_bet_ev', 'best_bet_kelly'
+        ]
+        print(value_bets[display_cols].head(10).to_string(index=False))
+        print(f"\nTotal games with positive EV: {len(value_bets)}")
+        print(f"Average Kelly bet size on value bets: {value_bets['best_bet_kelly'].mean():.2%} of bankroll")
+    else:
+        print("No positive expected value bets found.")
+    
+    # Print detailed breakdown for games with valid data
+    print("\n" + "=" * 120)
+    print("ALL BETS - EXPECTED VALUE & KELLY CRITERION")
+    print("=" * 120)
+    
+    valid_games = games_df[games_df['home_team'].notna() & games_df['away_team'].notna()].copy()
+    
+    if not valid_games.empty:
+        # Show all betting options with EV and Kelly
+        print("\nOver/Under Bets:")
+        print("-" * 120)
+        ou_cols = ["home_team", "away_team", "total_line", "model_total_points", "ev_over", "kelly_over", "ev_under", "kelly_under"]
+        ou_cols = [c for c in ou_cols if c in valid_games.columns]
+        print(valid_games[ou_cols].to_string(index=False))
+        
+        print("\n\nSpread Bets:")
+        print("-" * 120)
+        spread_cols = ["home_team", "away_team", "spread_line", "model_cover_pct_home", "ev_home_spread", "kelly_home_spread", "ev_away_spread", "kelly_away_spread"]
+        spread_cols = [c for c in spread_cols if c in valid_games.columns]
+        print(valid_games[spread_cols].head(10).to_string(index=False))
+        
+        print("\n\nMoneyline Bets:")
+        print("-" * 120)
+        ml_cols = ["home_team", "away_team", "model_win_pct_home", "home_moneyline", "ev_home_ml", "kelly_home_ml", "away_moneyline", "ev_away_ml", "kelly_away_ml"]
+        ml_cols = [c for c in ml_cols if c in valid_games.columns]
+        print(valid_games[ml_cols].head(10).to_string(index=False))
+        
+        print("\n\nBest Bet Summary:")
+        print("-" * 120)
+        summary_cols = ["home_team", "away_team", "best_bet_type", "best_bet_ev", "best_bet_kelly"]
+        summary_cols = [c for c in summary_cols if c in valid_games.columns]
+        print(valid_games[summary_cols].to_string(index=False))
 
     return games_df
 
