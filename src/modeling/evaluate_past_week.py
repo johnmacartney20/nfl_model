@@ -7,7 +7,7 @@ import joblib
 import sys
 
 from src.utils.config import GAME_LEVEL_FEATURES_CSV, MODEL_PATH
-from expected_points_model import add_book_implied_scores
+from expected_points_model import add_book_implied_scores, predict_scores_from_epa
 from sim import simulate_game_outcomes
 
 
@@ -60,6 +60,9 @@ def evaluate_past_week(season=2025, week=None):
         "away_def_dvoa",
         "off_dvoa_diff",
         "def_dvoa_diff",
+        "div_game",
+        "home_rest",
+        "away_rest",
     ]
     
     # Remove rows missing features
@@ -74,29 +77,14 @@ def evaluate_past_week(season=2025, week=None):
     probs = clf.predict_proba(X)[:, 1]
     week_games["home_win_prob"] = probs
     
-    # Add book implied scores
+    # Model expected scores using EPA-based predictions
+    week_games = predict_scores_from_epa(week_games)
+    
+    # Also add book implied scores for reference
     week_games = add_book_implied_scores(
         week_games, 
         spread_col="spread_line", 
         total_col="total_line"
-    )
-    
-    # Model expected scores based on EPA
-    league_avg_score = 22.5
-    home_field_advantage = 2.5
-    epa_to_points_scale = 25.0
-    
-    week_games["model_home_score"] = (
-        league_avg_score 
-        + home_field_advantage
-        + (week_games["home_avg_off_epa"] * epa_to_points_scale)
-        - (week_games["away_avg_def_epa"] * epa_to_points_scale)
-    )
-    
-    week_games["model_away_score"] = (
-        league_avg_score
-        + (week_games["away_avg_off_epa"] * epa_to_points_scale)
-        - (week_games["home_avg_def_epa"] * epa_to_points_scale)
     )
     
     # Run simulation

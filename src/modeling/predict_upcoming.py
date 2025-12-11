@@ -12,7 +12,7 @@ from src.utils.config import (
 )
 from src.utils.helpers import ensure_dirs
 
-from expected_points_model import add_book_implied_scores
+from expected_points_model import add_book_implied_scores, predict_scores_from_epa
 from sim import simulate_game_outcomes
 
 
@@ -104,6 +104,9 @@ def predict_upcoming_games():
     "away_def_dvoa",
     "off_dvoa_diff",
     "def_dvoa_diff",
+    "div_game",  # Division games play differently
+    "home_rest",  # Rest advantage matters
+    "away_rest",
 ]
 
 
@@ -121,37 +124,15 @@ def predict_upcoming_games():
     probs = clf.predict_proba(X)[:, 1]
     upcoming["home_win_prob"] = probs
 
-    # ---- Book implied scores from spread + total ----
-    # upcoming already has: spread_line, total_line, over_odds, under_odds, home_team, away_team, etc.
+    # ---- Model expected scores using EPA-based predictions ----
+    # Uses new predict_scores_from_epa function instead of just reversing Vegas lines
+    games_df = predict_scores_from_epa(upcoming)
+    
+    # Also get book implied scores for reference
     games_df = add_book_implied_scores(
-        upcoming,
+        games_df,
         spread_col="spread_line",
         total_col="total_line",
-    )
-
-    # ---- Model expected scores based on EPA and DVOA ----
-    # League average points per game (roughly 22-23 points per team)
-    league_avg_score = 22.5
-    home_field_advantage = 2.5
-    
-    # Scale EPA to points (EPA is typically between -0.2 and +0.2 for good/bad teams)
-    # A team with +0.1 EPA should score about 2-3 points more than average
-    epa_to_points_scale = 25.0
-    
-    # Calculate model scores based on offensive/defensive strength
-    # Home team score = base + home advantage + offensive strength - opponent defensive strength
-    games_df["model_home_score"] = (
-        league_avg_score 
-        + home_field_advantage
-        + (games_df["home_avg_off_epa"] * epa_to_points_scale)
-        - (games_df["away_avg_def_epa"] * epa_to_points_scale)
-    )
-    
-    # Away team score = base + offensive strength - opponent defensive strength
-    games_df["model_away_score"] = (
-        league_avg_score
-        + (games_df["away_avg_off_epa"] * epa_to_points_scale)
-        - (games_df["home_avg_def_epa"] * epa_to_points_scale)
     )
 
     # ---- Calculate probabilities analytically (faster and more stable than simulation) ----

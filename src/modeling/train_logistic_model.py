@@ -29,6 +29,9 @@ def train_logreg_model():
     "away_def_dvoa",
     "off_dvoa_diff",
     "def_dvoa_diff",
+    "div_game",  # Division games play differently
+    "home_rest",  # Rest advantage matters
+    "away_rest",
 ]
 
     # Basic guard if some early seasons have missing EPA
