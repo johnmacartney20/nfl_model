@@ -160,9 +160,10 @@ def predict_upcoming_games():
         # norm.ppf gives us the z-score, multiply by sigma to get expected margin
         expected_margin = stats.norm.ppf(win_prob) * sigma_margin
         
-        # Cover probability: home covers if (margin + spread_line) > 0
-        # Rearranged: margin > -spread_line
-        cover_threshold = -row["spread_line"]
+        # Cover probability: home covers if margin > spread_line
+        # (if spread_line is positive, home is favored and must win by more than that)
+        # (if spread_line is negative, home is underdog and can lose by less than that)
+        cover_threshold = row["spread_line"]
         cover_prob = 1 - stats.norm.cdf(cover_threshold, loc=expected_margin, scale=sigma_margin)
         
         # Over/under uses score predictions (independent from win/cover)
