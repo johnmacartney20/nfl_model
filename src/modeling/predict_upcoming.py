@@ -142,38 +142,41 @@ def predict_upcoming_games():
     )
 
     # ---- Calculate probabilities analytically (faster and more stable than simulation) ----
-    # Calculate ALL probabilities using analytical formulas based on expected scores
-    # This ensures consistency between win, cover, and total probabilities
+    # Calculate probabilities using logistic model for consistency
+    # Logistic regression performed better (64% accuracy vs 36% for score-based analytical)
     from scipy import stats
     
     sigma_margin = 13.5  # Standard deviation of point margin in NFL
     sigma_total = 10.5   # Standard deviation of total points in NFL
     
     def calculate_all_probs(row):
-        expected_margin = row["model_home_score"] - row["model_away_score"]
-        expected_total = row["model_home_score"] + row["model_away_score"]
+        # Use logistic win probability as the base
+        # Convert to expected margin via inverse normal CDF
+        # If P(win) = P(margin > 0), then margin ~ N(μ, σ) where P(Z > -μ/σ) = P(win)
+        # So μ = -σ * Z where Z is the z-score corresponding to P(win)
+        win_prob = row["home_win_prob"]
         
-        # Win probability: home wins if margin > 0
-        win_prob = 1 - stats.norm.cdf(0, loc=expected_margin, scale=sigma_margin)
+        # Find the expected margin that produces this win probability
+        # norm.ppf gives us the z-score, multiply by sigma to get expected margin
+        expected_margin = stats.norm.ppf(win_prob) * sigma_margin
         
         # Cover probability: home covers if (margin + spread_line) > 0
         # Rearranged: margin > -spread_line
         cover_threshold = -row["spread_line"]
         cover_prob = 1 - stats.norm.cdf(cover_threshold, loc=expected_margin, scale=sigma_margin)
         
-        # Over probability
+        # Over/under uses score predictions (independent from win/cover)
+        expected_total = row["model_home_score"] + row["model_away_score"]
         over_prob = 1 - stats.norm.cdf(row["total_line"], loc=expected_total, scale=sigma_total)
         
         return pd.Series({
-            'model_win_pct_home_analytical': win_prob,
             'model_cover_pct_home': cover_prob,
             'model_over_pct': over_prob
         })
     
     analytical_probs = games_df.apply(calculate_all_probs, axis=1)
     
-    # Use logistic regression for moneyline bets (more accurate: 64% vs 36% for analytical)
-    # Use analytical for spreads and totals
+    # Use logistic regression for all margin-related bets (moneyline and spreads)
     games_df["model_win_pct_home"] = games_df["home_win_prob"]  # Logistic regression
     games_df["model_win_pct_away"] = 1 - games_df["home_win_prob"]
     games_df["model_cover_pct_home"] = analytical_probs["model_cover_pct_home"]
