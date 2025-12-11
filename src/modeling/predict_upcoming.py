@@ -242,35 +242,36 @@ def predict_upcoming_games():
 
     # ============================================================
     # KELLY CRITERION BET SIZING (using quarter-Kelly for safety)
+    # Kelly values multiplied by $100 to represent bet amount on $100 bankroll
     # ============================================================
     
-    # Over/Under Kelly
+    # Over/Under Kelly (multiply by $100 bankroll to get bet amount)
     games_df["kelly_over"] = games_df.apply(
-        lambda row: calculate_kelly_fraction(row["model_over_pct"], row["dec_over_odds"]), 
+        lambda row: calculate_kelly_fraction(row["model_over_pct"], row["dec_over_odds"]) * 100, 
         axis=1
     )
     games_df["kelly_under"] = games_df.apply(
-        lambda row: calculate_kelly_fraction(row["model_under_pct"], row["dec_under_odds"]), 
+        lambda row: calculate_kelly_fraction(row["model_under_pct"], row["dec_under_odds"]) * 100, 
         axis=1
     )
     
-    # Spread Kelly
+    # Spread Kelly (multiply by $100 bankroll to get bet amount)
     games_df["kelly_home_spread"] = games_df.apply(
-        lambda row: calculate_kelly_fraction(row["model_cover_pct_home"], row["dec_home_spread_odds"]), 
+        lambda row: calculate_kelly_fraction(row["model_cover_pct_home"], row["dec_home_spread_odds"]) * 100, 
         axis=1
     )
     games_df["kelly_away_spread"] = games_df.apply(
-        lambda row: calculate_kelly_fraction(1 - row["model_cover_pct_home"], row["dec_away_spread_odds"]), 
+        lambda row: calculate_kelly_fraction(1 - row["model_cover_pct_home"], row["dec_away_spread_odds"]) * 100, 
         axis=1
     )
     
-    # Moneyline Kelly
+    # Moneyline Kelly (multiply by $100 bankroll to get bet amount)
     games_df["kelly_home_ml"] = games_df.apply(
-        lambda row: calculate_kelly_fraction(row["model_win_pct_home"], row["dec_home_moneyline"]), 
+        lambda row: calculate_kelly_fraction(row["model_win_pct_home"], row["dec_home_moneyline"]) * 100, 
         axis=1
     )
     games_df["kelly_away_ml"] = games_df.apply(
-        lambda row: calculate_kelly_fraction(1 - row["model_win_pct_home"], row["dec_away_moneyline"]), 
+        lambda row: calculate_kelly_fraction(1 - row["model_win_pct_home"], row["dec_away_moneyline"]) * 100, 
         axis=1
     )
     
@@ -335,7 +336,7 @@ def predict_upcoming_games():
         ]
         print(value_bets[display_cols].head(10).to_string(index=False))
         print(f"\nTotal games with positive EV: {len(value_bets)}")
-        print(f"Average Kelly bet size on value bets: {value_bets['best_bet_kelly'].mean():.2%} of bankroll")
+        print(f"Average Kelly bet size on value bets: ${value_bets['best_bet_kelly'].mean():.2f} (on $100 bankroll)")
     else:
         print("No positive expected value bets found.")
     
