@@ -26,17 +26,23 @@ def american_to_decimal(odds):
         return 1 + (100 / abs(odds))
 
 
-def calculate_kelly_fraction(probability, decimal_odds, kelly_fraction=0.25):
+def calculate_kelly_fraction(probability, decimal_odds, kelly_fraction=0.25, bet_type='moneyline'):
     """
-    Calculate Kelly Criterion bet size.
+    Calculate Kelly Criterion bet size with adjustments based on model's proven edge.
     
     Args:
         probability: Model's estimated probability of winning the bet
         decimal_odds: Decimal odds for the bet
-        kelly_fraction: Fraction of Kelly to use (default 0.25 = quarter Kelly for safety)
+        kelly_fraction: Base fraction of Kelly to use (default 0.25 = quarter Kelly)
+        bet_type: Type of bet ('moneyline', 'spread', 'total') - affects Kelly adjustment
     
     Returns:
         Recommended fraction of bankroll to bet (0 if no edge)
+    
+    Kelly adjustments based on historical performance:
+    - Moneyline: 0.25 (73.6% accuracy, well-calibrated at high confidence)
+    - Spread: 0.15 (63.9% accuracy, slightly over-confident)
+    - Total: 0.05 (50.5% accuracy, no real edge vs Vegas, worse at high confidence)
     """
     if pd.isna(probability) or pd.isna(decimal_odds):
         return 0.0
@@ -53,8 +59,15 @@ def calculate_kelly_fraction(probability, decimal_odds, kelly_fraction=0.25):
     if kelly <= 0:
         return 0.0
     
-    # Use fractional Kelly for safety (reduces variance)
-    return kelly * kelly_fraction
+    # Adjust Kelly fraction based on bet type and proven edge
+    if bet_type == 'moneyline':
+        adjusted_fraction = kelly_fraction  # 0.25 - model has strong edge
+    elif bet_type == 'spread':
+        adjusted_fraction = kelly_fraction * 0.6  # 0.15 - moderate edge, slightly over-confident
+    else:  # totals
+        adjusted_fraction = kelly_fraction * 0.2  # 0.05 - minimal edge, model worse than Vegas
+    
+    return kelly * adjusted_fraction
 
 
 def build_upcoming_games_features():
@@ -246,32 +259,35 @@ def predict_upcoming_games():
     # ============================================================
     
     # Over/Under Kelly (multiply by $100 bankroll to get bet amount)
+    # Using reduced Kelly (0.05) due to minimal edge vs Vegas
     games_df["kelly_over"] = games_df.apply(
-        lambda row: calculate_kelly_fraction(row["model_over_pct"], row["dec_over_odds"]) * 100, 
+        lambda row: calculate_kelly_fraction(row["model_over_pct"], row["dec_over_odds"], bet_type='total') * 100, 
         axis=1
     )
     games_df["kelly_under"] = games_df.apply(
-        lambda row: calculate_kelly_fraction(row["model_under_pct"], row["dec_under_odds"]) * 100, 
+        lambda row: calculate_kelly_fraction(row["model_under_pct"], row["dec_under_odds"], bet_type='total') * 100, 
         axis=1
     )
     
     # Spread Kelly (multiply by $100 bankroll to get bet amount)
+    # Using moderate Kelly (0.15) due to slight over-confidence
     games_df["kelly_home_spread"] = games_df.apply(
-        lambda row: calculate_kelly_fraction(row["model_cover_pct_home"], row["dec_home_spread_odds"]) * 100, 
+        lambda row: calculate_kelly_fraction(row["model_cover_pct_home"], row["dec_home_spread_odds"], bet_type='spread') * 100, 
         axis=1
     )
     games_df["kelly_away_spread"] = games_df.apply(
-        lambda row: calculate_kelly_fraction(1 - row["model_cover_pct_home"], row["dec_away_spread_odds"]) * 100, 
+        lambda row: calculate_kelly_fraction(1 - row["model_cover_pct_home"], row["dec_away_spread_odds"], bet_type='spread') * 100, 
         axis=1
     )
     
     # Moneyline Kelly (multiply by $100 bankroll to get bet amount)
+    # Using full Kelly (0.25) - model has strong edge and good calibration
     games_df["kelly_home_ml"] = games_df.apply(
-        lambda row: calculate_kelly_fraction(row["model_win_pct_home"], row["dec_home_moneyline"]) * 100, 
+        lambda row: calculate_kelly_fraction(row["model_win_pct_home"], row["dec_home_moneyline"], bet_type='moneyline') * 100, 
         axis=1
     )
     games_df["kelly_away_ml"] = games_df.apply(
-        lambda row: calculate_kelly_fraction(1 - row["model_win_pct_home"], row["dec_away_moneyline"]) * 100, 
+        lambda row: calculate_kelly_fraction(1 - row["model_win_pct_home"], row["dec_away_moneyline"], bet_type='moneyline') * 100, 
         axis=1
     )
     
