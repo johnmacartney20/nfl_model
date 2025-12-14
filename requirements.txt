@@ -2,3 +2,5 @@ nfl_data_py
 pandas
 scikit-learn
 joblib
+requests
+python-dotenv
