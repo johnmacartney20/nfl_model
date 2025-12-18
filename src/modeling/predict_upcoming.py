@@ -2,6 +2,7 @@
 from pyexpat import model
 import pandas as pd
 import joblib
+import math
 
 from src.utils.config import (
     GAME_LEVEL_FEATURES_CSV,
@@ -11,6 +12,7 @@ from src.utils.config import (
     OUTPUT_DIR,
 )
 from src.utils.helpers import ensure_dirs
+from src.utils.config import RAW_DIR
 
 from expected_points_model import add_book_implied_scores, predict_scores_from_epa
 from sim import simulate_game_outcomes
@@ -183,6 +185,8 @@ def predict_upcoming_games():
         games_df["model_home_score"] + games_df["model_away_score"]
     )
 
+    # QB-adjustment removed — using original model scores and probabilities
+
     # Treat missing odds as NaN (books might store them as 0)
     for col in ["over_odds", "under_odds"]:
         games_df.loc[games_df[col] == 0, col] = pd.NA
@@ -224,14 +228,17 @@ def predict_upcoming_games():
         - games_df["model_cover_pct_home"]
     )
     
-    # Moneyline Expected Value
+    # Moneyline Expected Value (use model's original win probability)
+    win_home_for_ml = games_df['model_win_pct_home']
+    win_away_for_ml = games_df['model_win_pct_away']
+
     games_df["ev_home_ml"] = (
-        games_df["model_win_pct_home"] * (games_df["dec_home_moneyline"] - 1)
-        - (1 - games_df["model_win_pct_home"])
+        win_home_for_ml * (games_df["dec_home_moneyline"] - 1)
+        - (1 - win_home_for_ml)
     )
     games_df["ev_away_ml"] = (
-        (1 - games_df["model_win_pct_home"]) * (games_df["dec_away_moneyline"] - 1)
-        - games_df["model_win_pct_home"]
+        win_away_for_ml * (games_df["dec_away_moneyline"] - 1)
+        - (1 - win_away_for_ml)
     )
 
     # ============================================================
