@@ -10,3 +10,6 @@ data/*
 !data/outputs/
 data/outputs/*
 !data/outputs/predictions_latest.csv
+!data/outputs/predictions_qb_med.csv
+!data/outputs/predictions_qb_aggressive.csv
+!data/outputs/predictions_qb_diff_med_vs_aggressive.csv
