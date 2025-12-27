@@ -1,4 +1,5 @@
 import math
+import argparse
 import pandas as pd
 from pathlib import Path
 
@@ -7,7 +8,7 @@ OUT = ROOT / "data" / "outputs"
 RAW = ROOT / "data" / "raw"
 
 
-def load_latest_schedule_score(home, away):
+def load_latest_schedule_score(home, away, season=None, week=None):
     sched = pd.read_csv(RAW / "schedules_2015_2025.csv")
     # normalize strings
     sched['home_team'] = sched['home_team'].astype(str).str.strip()
@@ -15,16 +16,43 @@ def load_latest_schedule_score(home, away):
     matches = sched[(sched['home_team'] == home) & (sched['away_team'] == away) & sched['home_score'].notna() & sched['away_score'].notna()].copy()
     if matches.empty:
         return None
-    # pick the most recent season/week
-    matches['season'] = matches['season'].astype(int)
-    matches['week'] = matches['week'].astype(int)
-    matches = matches.sort_values(['season', 'week'], ascending=[False, False])
+    # if season/week provided, prefer exact match
+    if season is not None:
+        try:
+            matches['season'] = matches['season'].astype(int)
+        except Exception:
+            pass
+        matches = matches[matches['season'] == int(season)]
+    if week is not None:
+        try:
+            matches['week'] = matches['week'].astype(int)
+        except Exception:
+            pass
+        matches = matches[matches['week'] == int(week)]
+    if matches.empty:
+        return None
+    # pick the most recent season/week among remaining matches
+    try:
+        matches['season'] = matches['season'].astype(int)
+        matches['week'] = matches['week'].astype(int)
+        matches = matches.sort_values(['season', 'week'], ascending=[False, False])
+    except Exception:
+        pass
     r = matches.iloc[0]
     return int(r['home_score']), int(r['away_score'])
 
 
 def main():
-    placed_path = OUT / "week15_kelly_placed.csv"
+    parser = argparse.ArgumentParser(description='Recompute placed bet outcomes for a given week')
+    parser.add_argument('--season', type=int, default=None, help='Season year (e.g. 2025)')
+    parser.add_argument('--week', type=int, required=True, help='NFL week number (e.g. 16)')
+    parser.add_argument('--placed-file', type=str, default=None, help='Optional path to placed bets CSV')
+    args = parser.parse_args()
+
+    season = args.season
+    week = args.week
+
+    placed_path = OUT / (f"week{week}_kelly_placed.csv" if args.placed_file is None else args.placed_file)
     if not placed_path.exists():
         print(f"Placed bets file not found: {placed_path}")
         return
@@ -44,7 +72,7 @@ def main():
     for _, row in placed.iterrows():
         away = str(row['away_team']).strip()
         home = str(row['home_team']).strip()
-        scores = load_latest_schedule_score(home, away)
+        scores = load_latest_schedule_score(home, away, season=season, week=week)
         if scores is None:
             # no final score found
             profit = None
@@ -163,7 +191,7 @@ def main():
 
     out_df = pd.DataFrame(results)
     # write corrected placed file
-    corrected_path = OUT / 'week15_kelly_placed_corrected.csv'
+    corrected_path = OUT / f'week{week}_kelly_placed_corrected.csv'
     out_df.to_csv(corrected_path, index=False)
     print(f"Wrote corrected placed bets to {corrected_path}")
 
@@ -191,7 +219,7 @@ def main():
     agg['winrate'] = agg['wins'] / (agg['wins'] + agg['losses']).replace({0: None})
     agg['avg_stake'] = agg['wagered'] / agg['n_bets']
 
-    perf_path = OUT / 'week15_kelly_performance_by_type.csv'
+    perf_path = OUT / f'week{week}_kelly_performance_by_type.csv'
     agg.reset_index().to_csv(perf_path, index=False)
     print(f"Wrote performance summary to {perf_path}")
 
