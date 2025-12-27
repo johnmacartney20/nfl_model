@@ -23,3 +23,14 @@ UPCOMING_GAMES_FEATURES_CSV = FEATURE_DIR / "upcoming_games_features.csv"
 
 MODEL_PATH = TRAINED_MODELS_DIR / "home_win_logreg.pkl"
 PREDICTIONS_CSV = OUTPUT_DIR / "predictions_latest.csv"
+
+# QB adjustment feature flag and parameters
+# If enabled, a league-wide backup effect (in points) will be applied to
+# predicted team scores when the starting QB differs from the historical
+# baseline for that team. The raw effect was estimated from pooled OLS
+# and can be shrunk/capped here for conservatism.
+ENABLE_QB_ADJUSTMENT = True
+QB_BACKUP_EFFECT_RAW = -6.042  # raw pooled estimate (points lost when backup starts)
+QB_SHRINK = 0.5  # shrink toward 0 to avoid over-adjusting
+QB_CAP = 3.0     # cap the absolute adjustment (points)
+

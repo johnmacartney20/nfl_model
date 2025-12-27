@@ -16,6 +16,13 @@ from src.utils.config import RAW_DIR
 
 from expected_points_model import add_book_implied_scores, predict_scores_from_epa
 from sim import simulate_game_outcomes
+from src.utils.config import (
+    ENABLE_QB_ADJUSTMENT,
+    QB_BACKUP_EFFECT_RAW,
+    QB_SHRINK,
+    QB_CAP,
+    GAME_LEVEL_FEATURES_CSV,
+)
 
 
 def american_to_decimal(odds):
@@ -185,7 +192,83 @@ def predict_upcoming_games():
         games_df["model_home_score"] + games_df["model_away_score"]
     )
 
-    # QB-adjustment removed — using original model scores and probabilities
+    # Apply optional QB adjustment: league-wide pooled backup effect (shrunk + capped)
+    if ENABLE_QB_ADJUSTMENT:
+        # Build a baseline starter mapping from historical game features
+        try:
+            hist = pd.read_csv(GAME_LEVEL_FEATURES_CSV)
+        except Exception:
+            hist = None
+
+        baseline_qb = {}
+        if hist is not None and not hist.empty:
+            # Stack home and away qb/team pairs to compute most common qb per team
+            home_pairs = hist[["home_team", "home_qb_id"]].rename(columns={"home_team": "team", "home_qb_id": "qb_id"})
+            away_pairs = hist[["away_team", "away_qb_id"]].rename(columns={"away_team": "team", "away_qb_id": "qb_id"})
+            stacked = pd.concat([home_pairs, away_pairs], ignore_index=True)
+            # Drop missing qb ids
+            stacked = stacked[stacked["qb_id"].notna()]
+            # Normalize to string for safe comparison
+            stacked["qb_id"] = stacked["qb_id"].astype(str)
+            stacked["team"] = stacked["team"].astype(str)
+            # Mode QB per team
+            for team, g in stacked.groupby("team"):
+                baseline_qb[team] = g["qb_id"].mode().iloc[0]
+
+        def _compute_qb_adj(row):
+            # default no adjustment
+            adj_home = 0.0
+            adj_away = 0.0
+
+            raw = float(QB_BACKUP_EFFECT_RAW)
+            shrink = float(QB_SHRINK)
+            cap = float(QB_CAP)
+
+            # prepare adjusted (shrunk and capped) value (signed)
+            shrunk = raw * shrink
+            # cap the magnitude
+            if shrunk < 0:
+                shrunk = max(shrunk, -abs(cap))
+            else:
+                shrunk = min(shrunk, abs(cap))
+
+            # Compare qb ids (string compare) to baseline; if different -> treat as backup
+            try:
+                home_team = str(row.get("home_team", ""))
+                away_team = str(row.get("away_team", ""))
+                home_qb = row.get("home_qb_id")
+                away_qb = row.get("away_qb_id")
+                if pd.notna(home_qb):
+                    base = baseline_qb.get(home_team, None)
+                    if base is not None and str(home_qb) != base:
+                        adj_home = shrunk
+                if pd.notna(away_qb):
+                    base = baseline_qb.get(away_team, None)
+                    if base is not None and str(away_qb) != base:
+                        adj_away = shrunk
+            except Exception:
+                pass
+
+            return pd.Series({"qb_adj_home": adj_home, "qb_adj_away": adj_away})
+
+        qb_adjs = games_df.apply(_compute_qb_adj, axis=1)
+        games_df = pd.concat([games_df, qb_adjs], axis=1)
+
+        # Apply adjustments to model scores and recompute model total
+        games_df["model_home_score"] = games_df["model_home_score"] + games_df.get("qb_adj_home", 0.0)
+        games_df["model_away_score"] = games_df["model_away_score"] + games_df.get("qb_adj_away", 0.0)
+        games_df["model_total_points"] = games_df["model_home_score"] + games_df["model_away_score"]
+
+        print(f"Applied QB adjustments (league-wide). Raw={QB_BACKUP_EFFECT_RAW}, shrink={QB_SHRINK}, cap={QB_CAP}")
+        # Recompute analytical probabilities now that model scores changed
+        analytical_probs = games_df.apply(calculate_all_probs, axis=1)
+        games_df["model_cover_pct_home"] = analytical_probs["model_cover_pct_home"]
+        games_df["model_over_pct"] = analytical_probs["model_over_pct"]
+        games_df["model_under_pct"] = 1 - games_df["model_over_pct"]
+    else:
+        # ensure columns exist for downstream code (no adjustment)
+        games_df["qb_adj_home"] = 0.0
+        games_df["qb_adj_away"] = 0.0
 
     # Treat missing odds as NaN (books might store them as 0)
     for col in ["over_odds", "under_odds"]:
