@@ -1,5 +1,6 @@
 import pandas as pd
 from src.utils.config import RAW_DIR, INTERIM_DIR, TEAM_GAME_EPA_CSV
+from src.utils.config import EXCLUDE_REG_SEASON_WEEKS_BY_SEASON
 from src.utils.helpers import ensure_dirs
 
 from typing import Optional
@@ -20,6 +21,21 @@ def build_team_game_epa(pbp: Optional[pd.DataFrame] = None, seasons=None):
 
     # Filter to rush and pass plays
     plays = pbp[pbp["play_type"].isin(["pass", "run"])].copy()
+
+    # Optionally exclude noisy late-season regular-season weeks (e.g., rested starters)
+    if EXCLUDE_REG_SEASON_WEEKS_BY_SEASON:
+        # nfl_data_py PBP uses `season_type` (REG/POST)
+        if "season" in plays.columns and "week" in plays.columns and "season_type" in plays.columns:
+            exclude_mask = pd.Series(False, index=plays.index)
+            for season, weeks in EXCLUDE_REG_SEASON_WEEKS_BY_SEASON.items():
+                if not weeks:
+                    continue
+                exclude_mask |= (
+                    (plays["season"] == season)
+                    & (plays["season_type"] == "REG")
+                    & (plays["week"].isin(weeks))
+                )
+            plays = plays[~exclude_mask].copy()
 
     # Per-game EPA
     off = (

@@ -5,6 +5,7 @@ from src.utils.config import (
     TEAM_GAME_EPA_CSV,
     FEATURE_DIR,
     GAME_LEVEL_FEATURES_CSV,
+    EXCLUDE_REG_SEASON_WEEKS_BY_SEASON,
 )
 from src.utils.helpers import ensure_dirs, add_home_away_flags
 
@@ -15,6 +16,19 @@ def build_game_level_features(seasons):
     # Load schedule
     sched_path = RAW_DIR / f"schedules_{min(seasons)}_{max(seasons)}.csv"
     sched = pd.read_csv(sched_path)
+
+    # Optionally exclude noisy late-season regular-season weeks (e.g., rested starters)
+    if EXCLUDE_REG_SEASON_WEEKS_BY_SEASON and {"season", "week", "game_type"}.issubset(set(sched.columns)):
+        exclude_mask = pd.Series(False, index=sched.index)
+        for season, weeks in EXCLUDE_REG_SEASON_WEEKS_BY_SEASON.items():
+            if not weeks:
+                continue
+            exclude_mask |= (
+                (sched["season"] == season)
+                & (sched["game_type"] == "REG")
+                & (sched["week"].isin(weeks))
+            )
+        sched = sched[~exclude_mask].copy()
 
     # Load season-to-date EPA
     STD_EPA_CSV = RAW_DIR.parent / "interim" / "season_to_date_epa.csv"

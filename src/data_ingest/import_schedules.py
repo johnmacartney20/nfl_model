@@ -8,8 +8,9 @@ def import_schedules(seasons):
     ensure_dirs([RAW_DIR])
     print(f"Loading schedules for seasons: {seasons}")
     sched = nfl.import_schedules(seasons)
-    # Keep only regular and playoff games for now
-    sched = sched[sched["game_type"].isin(["REG", "POST"])]
+    # Keep regular season + all postseason rounds; drop preseason.
+    # nfl_data_py uses game_type values like: REG, WC, DIV, CON, SB, PRE
+    sched = sched[sched["game_type"].isin(["REG", "WC", "DIV", "CON", "SB"])].copy()
     # Rename a few columns to keep things clear
     sched = sched.rename(
         columns={

@@ -16,6 +16,16 @@ EVAL_DIR = MODELS_DIR / "eval"
 # Seasons you want in the model for now
 DEFAULT_SEASONS = list(range(2015, 2026))
 
+# Some late-season weeks can be noisy (resting starters, etc.).
+# These exclusions are applied in feature building so they do not:
+# - influence season-to-date team EPA features
+# - appear as training rows in game-level features
+#
+# Keys are NFL season year; values are a list of regular-season week numbers.
+EXCLUDE_REG_SEASON_WEEKS_BY_SEASON = {
+	2025: [18],
+}
+
 # File names
 TEAM_GAME_EPA_CSV = INTERIM_DIR / "team_game_epa.csv"
 GAME_LEVEL_FEATURES_CSV = FEATURE_DIR / "game_level_features.csv"
