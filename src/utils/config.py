@@ -87,9 +87,10 @@ DEFAULT_SEASONS = get_model_seasons()
 # - appear as training rows in game-level features
 #
 # Keys are NFL season year; values are a list of regular-season week numbers.
-EXCLUDE_REG_SEASON_WEEKS_BY_SEASON = {
-	2025: [18],
-}
+# Week 18 is often noisy (resting starters, incentives, weather extremes), so
+# exclude it from the modeling dataset and predictions by default.
+_LATEST_SEASON = _infer_latest_season()
+EXCLUDE_REG_SEASON_WEEKS_BY_SEASON = {season: [18] for season in range(1999, _LATEST_SEASON + 1)}
 
 # File names
 TEAM_GAME_EPA_CSV = INTERIM_DIR / "team_game_epa.csv"
