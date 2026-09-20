@@ -263,7 +263,8 @@ def main(argv=None):
 
     if args:
         if args[0] == "all":
-            analyze_multiple_weeks()
+            season = int(args[1]) if len(args) > 1 else None
+            analyze_multiple_weeks(season=season)
             return
 
         week = int(args[0])

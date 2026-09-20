@@ -137,7 +137,15 @@ class EvaluatePastWeekDefaultSeasonTests(unittest.TestCase):
         with mock.patch.object(module, "analyze_multiple_weeks") as analyze_mock:
             module.main(["all"])
 
-        analyze_mock.assert_called_once_with()
+        analyze_mock.assert_called_once_with(season=None)
+
+    def test_main_all_branch_accepts_explicit_season(self):
+        module = self._import_module_with_stubs()
+
+        with mock.patch.object(module, "analyze_multiple_weeks") as analyze_mock:
+            module.main(["all", "2024"])
+
+        analyze_mock.assert_called_once_with(season=2024)
 
     def test_main_single_week_branch_uses_runtime_current_season(self):
         module = self._import_module_with_stubs()
