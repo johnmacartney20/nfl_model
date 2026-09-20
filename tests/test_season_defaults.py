@@ -5,15 +5,20 @@ import types
 import unittest
 from unittest import mock
 
-from src.utils.config import get_current_season
+import src.utils.config as config
 
 
 class GetCurrentSeasonTests(unittest.TestCase):
     def test_uses_prior_season_before_june(self):
-        self.assertEqual(get_current_season(datetime.date(2026, 1, 15)), 2025)
+        self.assertEqual(config.get_current_season(datetime.date(2026, 1, 15)), 2025)
 
     def test_uses_calendar_year_from_june_onward(self):
-        self.assertEqual(get_current_season(datetime.date(2026, 9, 20)), 2026)
+        self.assertEqual(config.get_current_season(datetime.date(2026, 9, 20)), 2026)
+
+    def test_excluded_weeks_follow_runtime_current_season(self):
+        with mock.patch.object(config, "get_current_season", return_value=2026):
+            excluded = config.get_excluded_reg_season_weeks_by_season()
+        self.assertEqual(excluded[2026], [18])
 
 
 class EvaluatePastWeekDefaultSeasonTests(unittest.TestCase):

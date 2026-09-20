@@ -88,7 +88,6 @@ def get_model_seasons() -> list[int]:
 
 
 # Seasons you want in the model by default (configurable via env vars above)
-CURRENT_SEASON = get_current_season()
 DEFAULT_SEASONS = get_model_seasons()
 
 # Some late-season weeks can be noisy (resting starters, etc.).
@@ -97,9 +96,12 @@ DEFAULT_SEASONS = get_model_seasons()
 # - appear as training rows in game-level features
 #
 # Keys are NFL season year; values are a list of regular-season week numbers.
-# Week 18 is often noisy (resting starters, incentives, weather extremes), so
-# exclude it from the modeling dataset and predictions by default.
-EXCLUDE_REG_SEASON_WEEKS_BY_SEASON = {season: [18] for season in range(1999, CURRENT_SEASON + 1)}
+def get_excluded_reg_season_weeks_by_season() -> dict[int, list[int]]:
+	"""Return regular-season weeks to exclude for the current runtime window."""
+	# Week 18 is often noisy (resting starters, incentives, weather extremes), so
+	# exclude it from the modeling dataset and predictions by default.
+	current_season = get_current_season()
+	return {season: [18] for season in range(1999, current_season + 1)}
 
 # File names
 TEAM_GAME_EPA_CSV = INTERIM_DIR / "team_game_epa.csv"
