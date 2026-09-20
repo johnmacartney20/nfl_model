@@ -1,5 +1,6 @@
 import math
 import argparse
+import re
 import pandas as pd
 from pathlib import Path
 
@@ -15,12 +16,11 @@ def get_latest_schedule_path():
     latest_path = None
     latest_end_season = None
     for path in schedule_files:
-        stem = path.stem
-        try:
-            _, start_season, end_season = stem.split("_", 2)
-            end_season = int(end_season)
-        except (TypeError, ValueError):
+        match = re.fullmatch(r"schedules_(\d{4})_(\d{4})", path.stem)
+        if match is None:
             continue
+        _, end_season_s = match.groups()
+        end_season = int(end_season_s)
         if latest_end_season is None or end_season > latest_end_season:
             latest_end_season = end_season
             latest_path = path

@@ -27,7 +27,11 @@ def _infer_latest_season(today: datetime.date | None = None) -> int:
 
 
 def get_current_season(today: datetime.date | None = None) -> int:
-	"""Return the current NFL season year for runtime defaults."""
+	"""Return the current NFL season year for runtime defaults.
+
+	January-May map to the prior season year; June onward maps to the
+	current calendar year.
+	"""
 	return _infer_latest_season(today)
 
 
