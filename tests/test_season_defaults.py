@@ -65,6 +65,16 @@ class EvaluatePastWeekDefaultSeasonTests(unittest.TestCase):
         def __setitem__(self, key, value):
             setattr(self, key, value)
 
+    class _FakeWeekColumn:
+        def __init__(self, first_value):
+            self.iloc = [first_value]
+
+    class _FakePrintedResult:
+        def __getitem__(self, key):
+            if key == "week":
+                return EvaluatePastWeekDefaultSeasonTests._FakeWeekColumn(7)
+            raise KeyError(key)
+
     def _import_module_with_stubs(self):
         pandas_stub = types.ModuleType("pandas")
         joblib_stub = types.ModuleType("joblib")
@@ -120,6 +130,36 @@ class EvaluatePastWeekDefaultSeasonTests(unittest.TestCase):
                 module.analyze_multiple_weeks(start_week=1)
 
         self.assertEqual(calls, [(2026, 1), (2026, 2), (2026, 3)])
+
+    def test_main_all_branch_delegates_without_fixed_season(self):
+        module = self._import_module_with_stubs()
+
+        with mock.patch.object(module, "analyze_multiple_weeks") as analyze_mock:
+            module.main(["all"])
+
+        analyze_mock.assert_called_once_with()
+
+    def test_main_single_week_branch_uses_runtime_current_season(self):
+        module = self._import_module_with_stubs()
+
+        with mock.patch.object(module, "get_current_season", return_value=2026), \
+             mock.patch.object(module, "evaluate_past_week", return_value=self._FakePrintedResult()) as eval_mock, \
+             mock.patch.object(module, "print_results") as print_mock:
+            module.main(["5"])
+
+        eval_mock.assert_called_once_with(season=2026, week=5)
+        print_mock.assert_called_once()
+
+    def test_main_no_arg_branch_uses_runtime_current_season(self):
+        module = self._import_module_with_stubs()
+
+        with mock.patch.object(module, "get_current_season", return_value=2026), \
+             mock.patch.object(module, "evaluate_past_week", return_value=self._FakePrintedResult()) as eval_mock, \
+             mock.patch.object(module, "print_results") as print_mock:
+            module.main([])
+
+        eval_mock.assert_called_once_with(season=2026)
+        print_mock.assert_called_once()
 
 
 if __name__ == "__main__":

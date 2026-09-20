@@ -258,23 +258,27 @@ def analyze_multiple_weeks(season=None, start_week=1, end_week=None):
     return combined
 
 
-if __name__ == "__main__":
-    # Parse command line arguments
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "all":
-            # Analyze all completed weeks
+def main(argv=None):
+    args = sys.argv[1:] if argv is None else argv
+
+    if args:
+        if args[0] == "all":
             analyze_multiple_weeks()
-        else:
-            # Single week specified
-            week = int(sys.argv[1])
-            season = int(sys.argv[2]) if len(sys.argv) > 2 else get_current_season()
-            result = evaluate_past_week(season=season, week=week)
-            if result is not None:
-                print_results(result, season, week)
-    else:
-        # Default: analyze most recent week
-        season = get_current_season()
-        result = evaluate_past_week(season=season)
+            return
+
+        week = int(args[0])
+        season = int(args[1]) if len(args) > 1 else get_current_season()
+        result = evaluate_past_week(season=season, week=week)
         if result is not None:
-            week = result['week'].iloc[0]
             print_results(result, season, week)
+        return
+
+    season = get_current_season()
+    result = evaluate_past_week(season=season)
+    if result is not None:
+        week = result['week'].iloc[0]
+        print_results(result, season, week)
+
+
+if __name__ == "__main__":
+    main()

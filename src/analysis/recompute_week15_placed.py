@@ -14,15 +14,17 @@ def get_latest_schedule_path():
     if not schedule_files:
         raise FileNotFoundError(f"No schedule files found under {RAW}")
     latest_path = None
-    latest_end_season = None
+    latest_range = None
     for path in schedule_files:
         match = re.fullmatch(r"schedules_(\d{4})_(\d{4})\.csv", path.name)
         if match is None:
             continue
-        _, end_season_s = match.groups()
+        start_season_s, end_season_s = match.groups()
+        start_season = int(start_season_s)
         end_season = int(end_season_s)
-        if latest_end_season is None or end_season > latest_end_season:
-            latest_end_season = end_season
+        candidate_range = (end_season, -start_season)
+        if latest_range is None or candidate_range > latest_range:
+            latest_range = candidate_range
             latest_path = path
     if latest_path is None:
         raise FileNotFoundError(f"No parseable schedule files found under {RAW}")
