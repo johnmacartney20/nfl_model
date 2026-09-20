@@ -20,6 +20,10 @@ class GetCurrentSeasonTests(unittest.TestCase):
             excluded = config.get_excluded_reg_season_weeks_by_season()
         self.assertEqual(excluded[2026], [18])
 
+    def test_excluded_weeks_constant_remains_dynamic(self):
+        with mock.patch.object(config, "get_current_season", return_value=2026):
+            self.assertEqual(config.EXCLUDE_REG_SEASON_WEEKS_BY_SEASON[2026], [18])
+
 
 class EvaluatePastWeekDefaultSeasonTests(unittest.TestCase):
     def _import_module_with_stubs(self):

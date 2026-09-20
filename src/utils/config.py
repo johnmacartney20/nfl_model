@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import datetime
+from collections.abc import Iterator, Mapping
 
 # Root directory is the project folder
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -102,6 +103,25 @@ def get_excluded_reg_season_weeks_by_season() -> dict[int, list[int]]:
 	# exclude it from the modeling dataset and predictions by default.
 	current_season = get_current_season()
 	return {season: [18] for season in range(1999, current_season + 1)}
+
+
+class _ExcludedWeeksBySeason(Mapping[int, list[int]]):
+	"""Compatibility shim that recomputes excluded weeks on each access."""
+
+	def _data(self) -> dict[int, list[int]]:
+		return get_excluded_reg_season_weeks_by_season()
+
+	def __getitem__(self, key: int) -> list[int]:
+		return self._data()[key]
+
+	def __iter__(self) -> Iterator[int]:
+		return iter(self._data())
+
+	def __len__(self) -> int:
+		return len(self._data())
+
+
+EXCLUDE_REG_SEASON_WEEKS_BY_SEASON = _ExcludedWeeksBySeason()
 
 # File names
 TEAM_GAME_EPA_CSV = INTERIM_DIR / "team_game_epa.csv"
