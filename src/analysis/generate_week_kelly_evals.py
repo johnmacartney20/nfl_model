@@ -5,7 +5,7 @@ Produces:
  - data/outputs/week{week}_kelly_placed.csv  (subset where stake > 0)
  - data/outputs/predictions_week{week}_reconstructed_totals.csv
 
-Usage: python3 src/analysis/generate_week_kelly_evals.py --season 2025 --week 16
+Usage: python3 src/analysis/generate_week_kelly_evals.py --season 2026 --week 3
 """
 import argparse
 from pathlib import Path

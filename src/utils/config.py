@@ -1,6 +1,7 @@
 from pathlib import Path
 import os
 import datetime
+from collections.abc import Iterator, Mapping
 
 # Root directory is the project folder
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -24,6 +25,15 @@ def _infer_latest_season(today: datetime.date | None = None) -> int:
 		today = datetime.date.today()
 	# Rough heuristic: before June, we're still in the prior season's playoffs/offseason.
 	return today.year - 1 if today.month < 6 else today.year
+
+
+def get_current_season(today: datetime.date | None = None) -> int:
+	"""Return the current NFL season year for runtime defaults.
+
+	January-May map to the prior season year; June onward maps to the
+	current calendar year.
+	"""
+	return _infer_latest_season(today)
 
 
 def _parse_seasons(value: str) -> list[int]:
@@ -87,10 +97,31 @@ DEFAULT_SEASONS = get_model_seasons()
 # - appear as training rows in game-level features
 #
 # Keys are NFL season year; values are a list of regular-season week numbers.
-# Week 18 is often noisy (resting starters, incentives, weather extremes), so
-# exclude it from the modeling dataset and predictions by default.
-_LATEST_SEASON = _infer_latest_season()
-EXCLUDE_REG_SEASON_WEEKS_BY_SEASON = {season: [18] for season in range(1999, _LATEST_SEASON + 1)}
+def get_excluded_reg_season_weeks_by_season() -> dict[int, list[int]]:
+	"""Return regular-season weeks to exclude for the current runtime window."""
+	# Week 18 is often noisy (resting starters, incentives, weather extremes), so
+	# exclude it from the modeling dataset and predictions by default.
+	current_season = get_current_season()
+	return {season: [18] for season in range(1999, current_season + 1)}
+
+
+class _ExcludedWeeksBySeason(Mapping[int, list[int]]):
+	"""Compatibility shim that recomputes excluded weeks on each access."""
+
+	def _data(self) -> dict[int, list[int]]:
+		return get_excluded_reg_season_weeks_by_season()
+
+	def __getitem__(self, key: int) -> list[int]:
+		return self._data()[key]
+
+	def __iter__(self) -> Iterator[int]:
+		return iter(self._data())
+
+	def __len__(self) -> int:
+		return len(self._data())
+
+
+EXCLUDE_REG_SEASON_WEEKS_BY_SEASON = _ExcludedWeeksBySeason()
 
 # File names
 TEAM_GAME_EPA_CSV = INTERIM_DIR / "team_game_epa.csv"
@@ -109,4 +140,3 @@ ENABLE_QB_ADJUSTMENT = True
 QB_BACKUP_EFFECT_RAW = -6.042  # raw pooled estimate (points lost when backup starts)
 QB_SHRINK = 0.5  # shrink toward 0 to avoid over-adjusting
 QB_CAP = 3.0     # cap the absolute adjustment (points)
-

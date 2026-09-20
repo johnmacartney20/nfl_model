@@ -6,12 +6,12 @@ import pandas as pd
 import joblib
 import sys
 
-from src.utils.config import GAME_LEVEL_FEATURES_CSV, MODEL_PATH
+from src.utils.config import GAME_LEVEL_FEATURES_CSV, MODEL_PATH, get_current_season
 from expected_points_model import add_book_implied_scores, predict_scores_from_epa
 from sim import simulate_game_outcomes
 
 
-def evaluate_past_week(season=2025, week=None):
+def evaluate_past_week(season=None, week=None):
     """
     Generate retroactive predictions for a past week and compare to actual results.
     
@@ -22,6 +22,9 @@ def evaluate_past_week(season=2025, week=None):
     Returns:
         DataFrame with predictions and actual results
     """
+    if season is None:
+        season = get_current_season()
+
     # Load model
     clf = joblib.load(MODEL_PATH)
     
@@ -177,7 +180,7 @@ def print_results(week_games, season, week):
     print(worst.to_string(index=False))
 
 
-def analyze_multiple_weeks(season=2025, start_week=1, end_week=None):
+def analyze_multiple_weeks(season=None, start_week=1, end_week=None):
     """
     Analyze model performance across multiple weeks.
     
@@ -189,6 +192,9 @@ def analyze_multiple_weeks(season=2025, start_week=1, end_week=None):
     Returns:
         DataFrame with aggregated statistics
     """
+    if season is None:
+        season = get_current_season()
+
     df = pd.read_csv(GAME_LEVEL_FEATURES_CSV)
     
     if end_week is None:
@@ -252,22 +258,28 @@ def analyze_multiple_weeks(season=2025, start_week=1, end_week=None):
     return combined
 
 
-if __name__ == "__main__":
-    # Parse command line arguments
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "all":
-            # Analyze all completed weeks
-            analyze_multiple_weeks(season=2025)
-        else:
-            # Single week specified
-            week = int(sys.argv[1])
-            season = int(sys.argv[2]) if len(sys.argv) > 2 else 2025
-            result = evaluate_past_week(season=season, week=week)
-            if result is not None:
-                print_results(result, season, week)
-    else:
-        # Default: analyze most recent week
-        result = evaluate_past_week(season=2025)
+def main(argv=None):
+    args = sys.argv[1:] if argv is None else argv
+
+    if args:
+        if args[0] == "all":
+            season = int(args[1]) if len(args) > 1 else None
+            analyze_multiple_weeks(season=season)
+            return
+
+        week = int(args[0])
+        season = int(args[1]) if len(args) > 1 else get_current_season()
+        result = evaluate_past_week(season=season, week=week)
         if result is not None:
-            week = result['week'].iloc[0]
-            print_results(result, 2025, week)
+            print_results(result, season, week)
+        return
+
+    season = get_current_season()
+    result = evaluate_past_week(season=season)
+    if result is not None:
+        week = result['week'].iloc[0]
+        print_results(result, season, week)
+
+
+if __name__ == "__main__":
+    main()

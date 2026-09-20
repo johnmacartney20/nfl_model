@@ -1,5 +1,6 @@
 import math
 import argparse
+import re
 import pandas as pd
 from pathlib import Path
 
@@ -8,8 +9,30 @@ OUT = ROOT / "data" / "outputs"
 RAW = ROOT / "data" / "raw"
 
 
+def get_latest_schedule_path():
+    schedule_files = list(RAW.glob("schedules_*.csv"))
+    if not schedule_files:
+        raise FileNotFoundError(f"No schedule files found under {RAW}")
+    latest_path = None
+    latest_range = None
+    for path in schedule_files:
+        match = re.fullmatch(r"schedules_(\d{4})_(\d{4})\.csv", path.name)
+        if match is None:
+            continue
+        start_season_s, end_season_s = match.groups()
+        start_season = int(start_season_s)
+        end_season = int(end_season_s)
+        candidate_range = (end_season, -start_season)
+        if latest_range is None or candidate_range > latest_range:
+            latest_range = candidate_range
+            latest_path = path
+    if latest_path is None:
+        raise FileNotFoundError(f"No parseable schedule files found under {RAW}")
+    return latest_path
+
+
 def load_latest_schedule_score(home, away, season=None, week=None):
-    sched = pd.read_csv(RAW / "schedules_2015_2025.csv")
+    sched = pd.read_csv(get_latest_schedule_path())
     # normalize strings
     sched['home_team'] = sched['home_team'].astype(str).str.strip()
     sched['away_team'] = sched['away_team'].astype(str).str.strip()
@@ -44,7 +67,7 @@ def load_latest_schedule_score(home, away, season=None, week=None):
 
 def main():
     parser = argparse.ArgumentParser(description='Recompute placed bet outcomes for a given week')
-    parser.add_argument('--season', type=int, default=None, help='Season year (e.g. 2025)')
+    parser.add_argument('--season', type=int, default=None, help='Season year (e.g. 2026)')
     parser.add_argument('--week', type=int, required=True, help='NFL week number (e.g. 16)')
     parser.add_argument('--placed-file', type=str, default=None, help='Optional path to placed bets CSV')
     args = parser.parse_args()
