@@ -16,7 +16,7 @@ def get_latest_schedule_path():
     latest_path = None
     latest_end_season = None
     for path in schedule_files:
-        match = re.fullmatch(r"schedules_(\d{4})_(\d{4})", path.stem)
+        match = re.fullmatch(r"schedules_(\d{4})_(\d{4})\.csv", path.name)
         if match is None:
             continue
         _, end_season_s = match.groups()
