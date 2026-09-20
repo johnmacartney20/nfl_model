@@ -26,6 +26,11 @@ def _infer_latest_season(today: datetime.date | None = None) -> int:
 	return today.year - 1 if today.month < 6 else today.year
 
 
+def get_current_season(today: datetime.date | None = None) -> int:
+	"""Return the current NFL season year for runtime defaults."""
+	return _infer_latest_season(today)
+
+
 def _parse_seasons(value: str) -> list[int]:
 	"""Parse seasons from an env string.
 
@@ -79,7 +84,7 @@ def get_model_seasons() -> list[int]:
 
 
 # Seasons you want in the model by default (configurable via env vars above)
-CURRENT_SEASON = _infer_latest_season()
+CURRENT_SEASON = get_current_season()
 DEFAULT_SEASONS = get_model_seasons()
 
 # Some late-season weeks can be noisy (resting starters, etc.).
