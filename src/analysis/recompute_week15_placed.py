@@ -9,10 +9,24 @@ RAW = ROOT / "data" / "raw"
 
 
 def get_latest_schedule_path():
-    schedule_files = sorted(RAW.glob("schedules_*.csv"))
+    schedule_files = list(RAW.glob("schedules_*.csv"))
     if not schedule_files:
         raise FileNotFoundError(f"No schedule files found under {RAW}")
-    return schedule_files[-1]
+    latest_path = None
+    latest_end_season = None
+    for path in schedule_files:
+        stem = path.stem
+        try:
+            _, start_season, end_season = stem.split("_", 2)
+            end_season = int(end_season)
+        except (TypeError, ValueError):
+            continue
+        if latest_end_season is None or end_season > latest_end_season:
+            latest_end_season = end_season
+            latest_path = path
+    if latest_path is None:
+        raise FileNotFoundError(f"No parseable schedule files found under {RAW}")
+    return latest_path
 
 
 def load_latest_schedule_score(home, away, season=None, week=None):
