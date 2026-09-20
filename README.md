@@ -55,9 +55,13 @@ cp .env.example .env
 
 See [docs/ODDS_COMPARISON.md](docs/ODDS_COMPARISON.md) for details.
 
+The pipeline automatically targets the current NFL season based on the date
+(for example, during the 2026 regular season it will use the 2026 season, while
+January playoff games still map to the prior season year).
+
 ## Model Performance
 
-**2025 Season (Weeks 1-14)**
+**Most recent published backtest: 2025 Season (Weeks 1-14)**
 - Win predictions: 73.6% accuracy
 - Moneyline bets: 91.7% win rate, 52.1% ROI
 - Spread bets: 75.0% win rate, 2.0% ROI

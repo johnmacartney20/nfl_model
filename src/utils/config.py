@@ -79,6 +79,7 @@ def get_model_seasons() -> list[int]:
 
 
 # Seasons you want in the model by default (configurable via env vars above)
+CURRENT_SEASON = _infer_latest_season()
 DEFAULT_SEASONS = get_model_seasons()
 
 # Some late-season weeks can be noisy (resting starters, etc.).
@@ -89,8 +90,7 @@ DEFAULT_SEASONS = get_model_seasons()
 # Keys are NFL season year; values are a list of regular-season week numbers.
 # Week 18 is often noisy (resting starters, incentives, weather extremes), so
 # exclude it from the modeling dataset and predictions by default.
-_LATEST_SEASON = _infer_latest_season()
-EXCLUDE_REG_SEASON_WEEKS_BY_SEASON = {season: [18] for season in range(1999, _LATEST_SEASON + 1)}
+EXCLUDE_REG_SEASON_WEEKS_BY_SEASON = {season: [18] for season in range(1999, CURRENT_SEASON + 1)}
 
 # File names
 TEAM_GAME_EPA_CSV = INTERIM_DIR / "team_game_epa.csv"
@@ -109,4 +109,3 @@ ENABLE_QB_ADJUSTMENT = True
 QB_BACKUP_EFFECT_RAW = -6.042  # raw pooled estimate (points lost when backup starts)
 QB_SHRINK = 0.5  # shrink toward 0 to avoid over-adjusting
 QB_CAP = 3.0     # cap the absolute adjustment (points)
-

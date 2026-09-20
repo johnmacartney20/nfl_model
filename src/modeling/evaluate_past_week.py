@@ -6,12 +6,12 @@ import pandas as pd
 import joblib
 import sys
 
-from src.utils.config import GAME_LEVEL_FEATURES_CSV, MODEL_PATH
+from src.utils.config import CURRENT_SEASON, GAME_LEVEL_FEATURES_CSV, MODEL_PATH
 from expected_points_model import add_book_implied_scores, predict_scores_from_epa
 from sim import simulate_game_outcomes
 
 
-def evaluate_past_week(season=2025, week=None):
+def evaluate_past_week(season=CURRENT_SEASON, week=None):
     """
     Generate retroactive predictions for a past week and compare to actual results.
     
@@ -177,7 +177,7 @@ def print_results(week_games, season, week):
     print(worst.to_string(index=False))
 
 
-def analyze_multiple_weeks(season=2025, start_week=1, end_week=None):
+def analyze_multiple_weeks(season=CURRENT_SEASON, start_week=1, end_week=None):
     """
     Analyze model performance across multiple weeks.
     
@@ -257,17 +257,17 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         if sys.argv[1] == "all":
             # Analyze all completed weeks
-            analyze_multiple_weeks(season=2025)
+            analyze_multiple_weeks(season=CURRENT_SEASON)
         else:
             # Single week specified
             week = int(sys.argv[1])
-            season = int(sys.argv[2]) if len(sys.argv) > 2 else 2025
+            season = int(sys.argv[2]) if len(sys.argv) > 2 else CURRENT_SEASON
             result = evaluate_past_week(season=season, week=week)
             if result is not None:
                 print_results(result, season, week)
     else:
         # Default: analyze most recent week
-        result = evaluate_past_week(season=2025)
+        result = evaluate_past_week(season=CURRENT_SEASON)
         if result is not None:
             week = result['week'].iloc[0]
-            print_results(result, 2025, week)
+            print_results(result, CURRENT_SEASON, week)

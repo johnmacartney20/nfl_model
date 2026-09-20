@@ -8,8 +8,15 @@ OUT = ROOT / "data" / "outputs"
 RAW = ROOT / "data" / "raw"
 
 
+def get_latest_schedule_path():
+    schedule_files = sorted(RAW.glob("schedules_*.csv"))
+    if not schedule_files:
+        raise FileNotFoundError(f"No schedule files found under {RAW}")
+    return schedule_files[-1]
+
+
 def load_latest_schedule_score(home, away, season=None, week=None):
-    sched = pd.read_csv(RAW / "schedules_2015_2025.csv")
+    sched = pd.read_csv(get_latest_schedule_path())
     # normalize strings
     sched['home_team'] = sched['home_team'].astype(str).str.strip()
     sched['away_team'] = sched['away_team'].astype(str).str.strip()
@@ -44,7 +51,7 @@ def load_latest_schedule_score(home, away, season=None, week=None):
 
 def main():
     parser = argparse.ArgumentParser(description='Recompute placed bet outcomes for a given week')
-    parser.add_argument('--season', type=int, default=None, help='Season year (e.g. 2025)')
+    parser.add_argument('--season', type=int, default=None, help='Season year (e.g. 2026)')
     parser.add_argument('--week', type=int, required=True, help='NFL week number (e.g. 16)')
     parser.add_argument('--placed-file', type=str, default=None, help='Optional path to placed bets CSV')
     args = parser.parse_args()

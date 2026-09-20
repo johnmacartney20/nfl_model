@@ -10,9 +10,9 @@ def predict_scores_from_epa(games: pd.DataFrame) -> pd.DataFrame:
     - Home field advantage (~2.5 points)
     - League average scoring
     
-    Calibrated to match actual 2025 season average of 46.2 ppg (23.1 per team).
+    Calibrated around a recent league scoring baseline of 46.2 ppg (23.1 per team).
     """
-    # League baseline (2025 season average is 46.2 ppg total, so 23.1 per team)
+    # League baseline (46.2 ppg total, so 23.1 per team)
     league_avg = 23.1
     home_field_advantage = 2.2  # Reduced from 2.5
     
