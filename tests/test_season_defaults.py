@@ -71,6 +71,9 @@ class EvaluatePastWeekDefaultSeasonTests(unittest.TestCase):
         ep_stub = types.ModuleType("expected_points_model")
         sim_stub = types.ModuleType("sim")
 
+        pandas_stub.read_csv = lambda *args, **kwargs: None
+        pandas_stub.concat = lambda *args, **kwargs: None
+        joblib_stub.load = lambda *args, **kwargs: None
         ep_stub.add_book_implied_scores = lambda *args, **kwargs: None
         ep_stub.predict_scores_from_epa = lambda *args, **kwargs: None
         sim_stub.simulate_game_outcomes = lambda *args, **kwargs: None
