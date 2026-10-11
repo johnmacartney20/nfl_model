@@ -13,7 +13,7 @@ def simulate_game_outcomes(
     Requires columns:
       model_home_score
       model_away_score
-      spread_line      (home spread, eg -3.5 if home is favoured by 3.5)
+      spread_line      (nflverse convention: home expected margin, eg +3.5 if home is favoured by 3.5)
       total_line       (game total points line)
 
     Adds columns:
@@ -43,8 +43,9 @@ def simulate_game_outcomes(
         win_home = (margin > 0).mean()
 
         # Home ATS:
-        # If spread_line is -3.5 for home, they cover when margin + spread_line > 0
-        cover_home = (margin + spread > 0).mean()
+        # spread_line +3.5 means home favoured by 3.5: home covers when margin > 3.5.
+        # Same rule as predict_upcoming.py and evaluate_past_week.py.
+        cover_home = (margin > spread).mean()
 
         # Over total
         over_prob = (totals > total_line).mean()

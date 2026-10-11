@@ -50,15 +50,15 @@ def add_book_implied_scores(
     NOTE: This is kept for backwards compatibility but predict_scores_from_epa 
     should be used instead for actual predictions.
 
-    spread_col: spread from home team perspective.
-                Example: home -3 means -3 here.
+    spread_col: nflverse convention, the home team's expected margin.
+                Positive = home favored. Example: home -3 is +3 here.
     total_col: game total points line.
     """
     spread = games[spread_col]
     total = games[total_col]
 
-    games["book_home_score"] = (total - spread) / 2
-    games["book_away_score"] = (total + spread) / 2
+    games["book_home_score"] = (total + spread) / 2
+    games["book_away_score"] = (total - spread) / 2
     return games
 
 

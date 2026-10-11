@@ -8,6 +8,7 @@ from src.utils.config import (
     get_excluded_reg_season_weeks_by_season,
 )
 from src.utils.helpers import ensure_dirs, add_home_away_flags
+from src.feature_engineering.build_team_game_epa import compute_pregame_team_features
 
 
 def build_game_level_features(seasons):
@@ -31,57 +32,27 @@ def build_game_level_features(seasons):
             )
         sched = sched[~exclude_mask].copy()
 
-    # Load season-to-date EPA
-    STD_EPA_CSV = RAW_DIR.parent / "interim" / "season_to_date_epa.csv"
-    season_epa = pd.read_csv(STD_EPA_CSV)
+    # Point-in-time team ratings: each game sees only games played before it.
+    # (Previously full-season averages were joined on (season, team), which
+    # leaked each game's own result and every later game into its features.)
+    team_game_epa = pd.read_csv(TEAM_GAME_EPA_CSV)
+    pregame = compute_pregame_team_features(sched, team_game_epa)
 
-    # --------------------------------------------------------------------
-    # Build DVOA-like strength ratings from season EPA (no external CSV)
-    # --------------------------------------------------------------------
-    # We assume season_epa has: season, team, team_avg_off_epa, team_avg_def_epa, team_avg_success_rate
-    # Compute league averages per season
-    season_epa["off_mean"] = season_epa.groupby("season")["team_avg_off_epa"].transform("mean")
-    season_epa["def_mean"] = season_epa.groupby("season")["team_avg_def_epa"].transform("mean")
-
-    # Offense "DVOA": how much better/worse than league average offense (scaled to percentage)
-    season_epa["off_dvoa"] = (season_epa["team_avg_off_epa"] - season_epa["off_mean"]) * 100
-
-    # Defense "DVOA": positive is better defense (allowing less EPA than average)
-    season_epa["def_dvoa"] = -(season_epa["team_avg_def_epa"] - season_epa["def_mean"]) * 100
-
-    # --------------------------------------------------------------------
-    # Merge home team's season-to-date EPA + DVOA
-    # --------------------------------------------------------------------
-    df = sched.merge(
-        season_epa.rename(
+    def _side(prefix):
+        return pregame.drop(columns=["season", "week"]).rename(
             columns={
-                "team": "home_team",
-                "team_avg_off_epa": "home_avg_off_epa",
-                "team_avg_def_epa": "home_avg_def_epa",
-                "team_avg_success_rate": "home_avg_success_rate",
-                "off_dvoa": "home_off_dvoa",
-                "def_dvoa": "home_def_dvoa",
+                "team": f"{prefix}_team",
+                "team_avg_off_epa": f"{prefix}_avg_off_epa",
+                "team_avg_def_epa": f"{prefix}_avg_def_epa",
+                "team_avg_success_rate": f"{prefix}_avg_success_rate",
+                "team_games_played_pre": f"{prefix}_games_played_pre",
+                "off_dvoa": f"{prefix}_off_dvoa",
+                "def_dvoa": f"{prefix}_def_dvoa",
             }
-        ),
-        on=["season", "home_team"],
-        how="left",
-    )
+        )
 
-    # Merge away team's season-to-date EPA + DVOA
-    df = df.merge(
-        season_epa.rename(
-            columns={
-                "team": "away_team",
-                "team_avg_off_epa": "away_avg_off_epa",
-                "team_avg_def_epa": "away_avg_def_epa",
-                "team_avg_success_rate": "away_avg_success_rate",
-                "off_dvoa": "away_off_dvoa",
-                "def_dvoa": "away_def_dvoa",
-            }
-        ),
-        on=["season", "away_team"],
-        how="left",
-    )
+    df = sched.merge(_side("home"), on=["game_id", "home_team"], how="left")
+    df = df.merge(_side("away"), on=["game_id", "away_team"], how="left")
 
     # Simple matchup features from DVOA-style ratings
     df["off_dvoa_diff"] = df["home_off_dvoa"] - df["away_off_dvoa"]

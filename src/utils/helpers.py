@@ -12,7 +12,12 @@ def add_home_away_flags(games_df: pd.DataFrame) -> pd.DataFrame:
 	- away_team
 	- home_score
 	- away_score
+
+	Unplayed games (either score missing) get home_win = NA, not 0, so they
+	can never be mistaken for home losses.
 	"""
 	games_df = games_df.copy()
-	games_df["home_win"] = (games_df["home_score"] > games_df["away_score"]).astype(int)
+	played = games_df["home_score"].notna() & games_df["away_score"].notna()
+	home_win = (games_df["home_score"] > games_df["away_score"]).astype("Int64")
+	games_df["home_win"] = home_win.where(played, pd.NA)
 	return games_df
