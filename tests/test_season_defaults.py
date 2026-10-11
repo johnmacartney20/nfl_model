@@ -25,6 +25,33 @@ class GetCurrentSeasonTests(unittest.TestCase):
             self.assertEqual(config.EXCLUDE_REG_SEASON_WEEKS_BY_SEASON[2026], [18])
 
 
+class ImportPbpAvailabilityTests(unittest.TestCase):
+    def test_filters_unavailable_pbp_seasons(self):
+        import src.data_ingest.import_pbp as import_pbp
+
+        with mock.patch.object(import_pbp, "requests", create=True) as requests_mock:
+            requests_mock.head.side_effect = [
+                mock.Mock(status_code=200),
+                mock.Mock(status_code=404),
+            ]
+
+            self.assertEqual(
+                import_pbp._resolve_available_pbp_seasons([2025, 2026]),
+                [2025],
+            )
+
+    def test_uses_non_participation_pbp_import(self):
+        import src.data_ingest.import_pbp as import_pbp
+
+        with mock.patch.object(import_pbp, "ensure_dirs"), \
+             mock.patch.object(import_pbp, "_resolve_available_pbp_seasons", return_value=[2026]), \
+             mock.patch.object(import_pbp.nfl, "import_pbp_data") as import_mock, \
+             mock.patch.object(import_pbp.pd.DataFrame, "to_parquet"):
+            import_pbp.import_pbp_data([2026])
+
+        import_mock.assert_called_once_with([2026], include_participation=False)
+
+
 class EvaluatePastWeekDefaultSeasonTests(unittest.TestCase):
     class _FakeMask:
         def __and__(self, other):

@@ -428,6 +428,17 @@ def predict_upcoming_games(season=None, week=None, today=None):
     best_bets_df = games_df.apply(find_best_bet, axis=1)
     games_df = pd.concat([games_df, best_bets_df], axis=1)
 
+    # Keep the outputs directory focused on the current active slate.
+    stale_patterns = [
+        "predictions_qb_*.csv",
+        "predictions_week*_reconstructed_totals.csv",
+        "week*_kelly_*.csv",
+    ]
+    for pattern in stale_patterns:
+        for stale in OUTPUT_DIR.glob(pattern):
+            if stale.name != PREDICTIONS_CSV.name:
+                stale.unlink(missing_ok=True)
+
     # Save full predictions with simulation output
     games_df.to_csv(PREDICTIONS_CSV, index=False)
     print(f"Saved predictions (with simulation) to {PREDICTIONS_CSV}")
