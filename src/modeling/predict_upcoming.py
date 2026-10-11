@@ -1,5 +1,6 @@
 # runs predictions for next week
-from pyexpat import model
+import argparse
+import datetime
 import pandas as pd
 import joblib
 import math
@@ -22,6 +23,7 @@ from src.utils.config import (
     QB_SHRINK,
     QB_CAP,
     GAME_LEVEL_FEATURES_CSV,
+    get_current_season,
 )
 
 
@@ -79,26 +81,54 @@ def calculate_kelly_fraction(probability, decimal_odds, kelly_fraction=0.25, bet
     return kelly * adjusted_fraction
 
 
-def build_upcoming_games_features():
+def select_upcoming_slate(df, season=None, week=None, today=None):
+    """Pick the games to predict: unplayed games of the current season/week.
+
+    - season defaults to the current NFL season (see get_current_season).
+    - week defaults to the earliest week in that season that still has unplayed games.
     """
-    For now, "upcoming games" will be rows where scores are NaN.
-    Later, you can explicitly filter by week and season.
-    """
+    if season is None:
+        season = get_current_season()
+    unplayed = df[
+        (df["season"] == season)
+        & (df["home_score"].isna() | df["away_score"].isna())
+    ]
+    if unplayed.empty:
+        return unplayed.copy()
+    if week is None:
+        week = int(unplayed["week"].min())
+    slate = unplayed[unplayed["week"] == week].copy()
+    if today is not None:
+        slate["gameday"] = pd.to_datetime(slate["gameday"]).dt.date
+        slate = slate[slate["gameday"] == today]
+    return slate
+
+
+def build_upcoming_games_features(season=None, week=None, today=None):
+    """Build the feature table for the current season's upcoming week."""
     df = pd.read_csv(GAME_LEVEL_FEATURES_CSV)
-    upcoming = df[df["home_score"].isna() | df["away_score"].isna()].copy()
+    print(f"Seasons present in feature data: {sorted(df['season'].unique().tolist())}")
+    upcoming = select_upcoming_slate(df, season=season, week=week, today=today)
+
+    if not upcoming.empty:
+        print(
+            f"Target slate: season={int(upcoming['season'].iloc[0])}, "
+            f"week={int(upcoming['week'].iloc[0])}, games={len(upcoming)}, "
+            f"gamedays={sorted(upcoming['gameday'].astype(str).unique().tolist())}"
+        )
 
     upcoming.to_csv(UPCOMING_GAMES_FEATURES_CSV, index=False)
     print(f"Saved upcoming features to {UPCOMING_GAMES_FEATURES_CSV}")
     return upcoming
 
 
-def predict_upcoming_games():
+def predict_upcoming_games(season=None, week=None, today=None):
     ensure_dirs([OUTPUT_DIR])
 
     clf = joblib.load(MODEL_PATH)
 
     # Build the upcoming games table
-    upcoming = build_upcoming_games_features()
+    upcoming = build_upcoming_games_features(season=season, week=week, today=today)
 
     feature_cols = [
     "home_avg_off_epa",
@@ -402,6 +432,13 @@ def predict_upcoming_games():
     games_df.to_csv(PREDICTIONS_CSV, index=False)
     print(f"Saved predictions (with simulation) to {PREDICTIONS_CSV}")
 
+    # Also save a dated copy named for the season/week slate
+    slate_season = int(games_df["season"].iloc[0])
+    slate_week = int(games_df["week"].iloc[0])
+    slate_path = OUTPUT_DIR / f"predictions_{slate_season}_week{slate_week}.csv"
+    games_df.to_csv(slate_path, index=False)
+    print(f"Saved predictions for {slate_season} week {slate_week} to {slate_path}")
+
     # Print a summary of best bets
     print("\n" + "=" * 120)
     print("TOP BETTING OPPORTUNITIES (Highest Expected Value)")
@@ -464,4 +501,13 @@ def predict_upcoming_games():
 
 
 if __name__ == "__main__":
-    predict_upcoming_games()
+    parser = argparse.ArgumentParser(description="Predict upcoming NFL games")
+    parser.add_argument("--season", type=int, default=None, help="NFL season year (default: current)")
+    parser.add_argument("--week", type=int, default=None, help="Week number (default: next unplayed week)")
+    parser.add_argument("--today", action="store_true", help="Only games played today")
+    args = parser.parse_args()
+    predict_upcoming_games(
+        season=args.season,
+        week=args.week,
+        today=datetime.date.today() if args.today else None,
+    )
